@@ -1,0 +1,33 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "eu.ansvar/czech-competition-mcp",
+  "description": "Query UOHS (Czech Office for the Protection of Competition) decisions, merger control cases, and sector enforcement activity under Czech competition law",
+  "repository": {
+    "url": "https://github.com/Ansvar-Systems/czech-competition-mcp",
+    "source": "github"
+  },
+  "homepage": "https://ansvar.eu",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "keywords": [
+    "uohs",
+    "czech-competition",
+    "antitrust",
+    "merger-control",
+    "czech-republic",
+    "competition-law",
+    "compliance",
+    "mcp",
+    "ansvar"
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@ansvar/czech-competition-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

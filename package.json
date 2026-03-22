@@ -1,0 +1,61 @@
+{
+  "name": "@ansvar/czech-competition-mcp",
+  "version": "0.1.0",
+  "mcpName": "eu.ansvar/czech-competition-mcp",
+  "description": "UOHS (Czech Office for the Protection of Competition) MCP server — competition decisions, merger control, and sector enforcement",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "bin": {
+    "czech-competition-mcp": "dist/src/index.js"
+  },
+  "files": [
+    "dist",
+    "server.json"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ansvar-Systems/czech-competition-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Ansvar-Systems/czech-competition-mcp/issues"
+  },
+  "homepage": "https://github.com/Ansvar-Systems/czech-competition-mcp#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "claude",
+    "uohs",
+    "czech-competition",
+    "antitrust",
+    "merger-control",
+    "czech-republic",
+    "competition-law",
+    "compliance",
+    "ansvar"
+  ],
+  "author": "Ansvar Systems AB <hello@ansvar.ai>",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/http-server.ts",
+    "start": "node dist/src/http-server.js",
+    "seed": "npx tsx scripts/seed-sample.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "better-sqlite3": "^9.4.3",
+    "zod": "^3.22.4"
+  }
+}
