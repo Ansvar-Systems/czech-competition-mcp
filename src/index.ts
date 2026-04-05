@@ -26,6 +26,7 @@ import {
   searchMergers,
   getMerger,
   listSectors,
+  getDataFreshness,
 } from "./db.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -156,6 +157,26 @@ const TOOLS = [
       required: [],
     },
   },
+  {
+    name: "cz_comp_list_sources",
+    description:
+      "List authoritative data sources used by this MCP server, with provenance metadata (URL, authority, scope, license, update frequency).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "cz_comp_check_data_freshness",
+    description:
+      "Check data freshness: returns the latest decision/merger dates and record counts from the database.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
 ];
 
 // --- Zod schemas for argument validation --------------------------------------
@@ -183,10 +204,38 @@ const GetMergerArgs = z.object({
   case_number: z.string().min(1),
 });
 
+// --- Sources metadata --------------------------------------------------------
+
+const SOURCES = [
+  {
+    id: "uohs-decisions",
+    name: "UOHS Enforcement Decisions",
+    authority: "Úřad pro ochranu hospodářské soutěže (UOHS)",
+    url: "https://www.uohs.cz/cs/hospodarska-soutez/spravni-rozhodnuti.html",
+    scope: "Abuse of dominance, cartel, public procurement, and sector inquiry decisions under ZOHS",
+    license: "Public domain (official government publication)",
+    update_frequency: "Periodic ingestion from UOHS website",
+  },
+  {
+    id: "uohs-mergers",
+    name: "UOHS Merger Control Decisions",
+    authority: "Úřad pro ochranu hospodářské soutěže (UOHS)",
+    url: "https://www.uohs.cz/cs/hospodarska-soutez/spojovani-soutezitelu.html",
+    scope: "Merger control decisions under ZOHS §12-19",
+    license: "Public domain (official government publication)",
+    update_frequency: "Periodic ingestion from UOHS website",
+  },
+];
+
 // --- Helper ------------------------------------------------------------------
 
 function textContent(data: unknown) {
   return {
+    _meta: {
+      server: SERVER_NAME,
+      version: pkgVersion,
+      generated_at: new Date().toISOString(),
+    },
     content: [
       { type: "text" as const, text: JSON.stringify(data, null, 2) },
     ],
@@ -276,6 +325,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
           tools: TOOLS.map((t) => ({ name: t.name, description: t.description })),
         });
+      }
+
+      case "cz_comp_list_sources": {
+        return textContent({ sources: SOURCES, count: SOURCES.length });
+      }
+
+      case "cz_comp_check_data_freshness": {
+        const freshness = getDataFreshness();
+        return textContent(freshness);
       }
 
       default:
