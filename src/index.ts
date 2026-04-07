@@ -27,6 +27,7 @@ import {
   getMerger,
   listSectors,
 } from "./db.js";
+import { buildCitation } from "./citation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -234,7 +235,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!decision) {
           return errorContent(`Decision not found: ${parsed.case_number}`);
         }
-        return textContent(decision);
+        return textContent({
+          ...(typeof decision === 'object' ? decision : { data: decision }),
+          _citation: buildCitation(
+            (decision as any).case_number || parsed.case_number,
+            (decision as any).title || (decision as any).subject || '',
+            'cz_comp_get_decision',
+            { case_number: parsed.case_number },
+            (decision as any).url || null,
+          ),
+        });
       }
 
       case "cz_comp_search_mergers": {
@@ -254,7 +264,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!merger) {
           return errorContent(`Merger decision not found: ${parsed.case_number}`);
         }
-        return textContent(merger);
+        return textContent({
+          ...(typeof merger === 'object' ? merger : { data: merger }),
+          _citation: buildCitation(
+            (merger as any).case_number || parsed.case_number,
+            (merger as any).title || (merger as any).subject || '',
+            'cz_comp_get_merger',
+            { case_number: parsed.case_number },
+            (merger as any).url || null,
+          ),
+        });
       }
 
       case "cz_comp_list_sectors": {
