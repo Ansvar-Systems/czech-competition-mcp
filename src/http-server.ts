@@ -29,6 +29,7 @@ import {
   searchMergers,
   getMerger,
   listSectors,
+  getDataFreshness,
 } from "./db.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -53,23 +54,23 @@ const TOOLS = [
   {
     name: "cz_comp_search_decisions",
     description:
-      "Full-text search across Bundeskartellamt enforcement decisions (abuse of dominance, cartel, sector inquiries). Returns matching decisions with case number, parties, outcome, fine amount, and UOHS articles cited.",
+      "Full-text search across UOHS competition enforcement decisions. Covers abuse of dominance, cartel enforcement, public procurement violations, and sector inquiries under Czech competition law (ZOHS). Returns matching decisions with case number, parties, sector, outcome, and summary.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        query: { type: "string", description: "Search query (e.g., 'Marktmissbrauch', 'Facebook', 'Preisabsprache')" },
+        query: { type: "string", description: "Search query (e.g., 'dominantní postavení', 'kartel', 'veřejná zakázka')" },
         type: {
           type: "string",
-          enum: ["abuse_of_dominance", "cartel", "merger", "sector_inquiry"],
-          description: "Filter by decision type. Optional.",
+          enum: ["abuse_of_dominance", "cartel", "sector_inquiry", "public_procurement"],
+          description: "Filter by case type. Optional.",
         },
-        sector: { type: "string", description: "Filter by sector ID. Optional." },
+        sector: { type: "string", description: "Filter by industry sector (e.g., 'energy', 'telecommunications', 'retail'). Optional." },
         outcome: {
           type: "string",
-          enum: ["prohibited", "cleared", "cleared_with_conditions", "fine"],
-          description: "Filter by outcome. Optional.",
+          enum: ["infringement", "commitment", "no_infringement", "fine"],
+          description: "Filter by decision outcome. Optional.",
         },
-        limit: { type: "number", description: "Max results (default 20)." },
+        limit: { type: "number", description: "Maximum number of results to return. Defaults to 20." },
       },
       required: ["query"],
     },
@@ -77,11 +78,11 @@ const TOOLS = [
   {
     name: "cz_comp_get_decision",
     description:
-      "Get a specific Bundeskartellamt decision by case number (e.g., 'B6-22/16').",
+      "Get a specific UOHS competition decision by case number (e.g., 'UOHS-S0001/2024/KD', 'UOHS-R0050/2023/HS').",
     inputSchema: {
       type: "object" as const,
       properties: {
-        case_number: { type: "string", description: "Case number (e.g., 'B6-22/16', 'B2-94/12')" },
+        case_number: { type: "string", description: "UOHS case number" },
       },
       required: ["case_number"],
     },
@@ -89,18 +90,18 @@ const TOOLS = [
   {
     name: "cz_comp_search_mergers",
     description:
-      "Search Bundeskartellamt merger control decisions (merger control).",
+      "Search UOHS merger control decisions. Returns merger cases with acquiring party, target, sector, turnover thresholds, and clearance outcome.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        query: { type: "string", description: "Search query (e.g., 'Vonovia', 'Energieversorgung')" },
-        sector: { type: "string", description: "Filter by sector ID. Optional." },
+        query: { type: "string", description: "Search query (e.g., 'spojení soutěžitelů', 'retail', 'energie')" },
+        sector: { type: "string", description: "Filter by industry sector. Optional." },
         outcome: {
           type: "string",
-          enum: ["cleared", "cleared_phase1", "cleared_with_conditions", "prohibited"],
+          enum: ["cleared", "cleared_with_conditions", "blocked", "withdrawn"],
           description: "Filter by merger outcome. Optional.",
         },
-        limit: { type: "number", description: "Max results (default 20)." },
+        limit: { type: "number", description: "Maximum number of results to return. Defaults to 20." },
       },
       required: ["query"],
     },
@@ -108,11 +109,11 @@ const TOOLS = [
   {
     name: "cz_comp_get_merger",
     description:
-      "Get a specific merger control decision by case number (e.g., 'B1-35/21').",
+      "Get a specific UOHS merger control decision by case number (e.g., 'UOHS-S0010/2024/KS').",
     inputSchema: {
       type: "object" as const,
       properties: {
-        case_number: { type: "string", description: "Merger case number (e.g., 'B1-35/21')" },
+        case_number: { type: "string", description: "UOHS merger case number" },
       },
       required: ["case_number"],
     },
@@ -120,7 +121,7 @@ const TOOLS = [
   {
     name: "cz_comp_list_sectors",
     description:
-      "List all sectors with Bundeskartellamt enforcement activity, including decision and merger counts.",
+      "List all industry sectors with UOHS enforcement activity covered in this MCP, with decision and merger counts.",
     inputSchema: { type: "object" as const, properties: {}, required: [] },
   },
   {
@@ -129,15 +130,27 @@ const TOOLS = [
       "Return metadata about this MCP server: version, data source, coverage, and tool list.",
     inputSchema: { type: "object" as const, properties: {}, required: [] },
   },
+  {
+    name: "cz_comp_list_sources",
+    description:
+      "List authoritative data sources used by this MCP server, with provenance metadata (URL, authority, scope, license, update frequency).",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "cz_comp_check_data_freshness",
+    description:
+      "Check data freshness: returns the latest decision/merger dates and record counts from the database.",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
 ];
 
 // --- Zod schemas -------------------------------------------------------------
 
 const SearchDecisionsArgs = z.object({
   query: z.string().min(1),
-  type: z.enum(["abuse_of_dominance", "cartel", "merger", "sector_inquiry"]).optional(),
+  type: z.enum(["abuse_of_dominance", "cartel", "sector_inquiry", "public_procurement"]).optional(),
   sector: z.string().optional(),
-  outcome: z.enum(["prohibited", "cleared", "cleared_with_conditions", "fine"]).optional(),
+  outcome: z.enum(["infringement", "commitment", "no_infringement", "fine"]).optional(),
   limit: z.number().int().positive().max(100).optional(),
 });
 
@@ -148,13 +161,36 @@ const GetDecisionArgs = z.object({
 const SearchMergersArgs = z.object({
   query: z.string().min(1),
   sector: z.string().optional(),
-  outcome: z.enum(["cleared", "cleared_phase1", "cleared_with_conditions", "prohibited"]).optional(),
+  outcome: z.enum(["cleared", "cleared_with_conditions", "blocked", "withdrawn"]).optional(),
   limit: z.number().int().positive().max(100).optional(),
 });
 
 const GetMergerArgs = z.object({
   case_number: z.string().min(1),
 });
+
+// --- Sources metadata --------------------------------------------------------
+
+const SOURCES = [
+  {
+    id: "uohs-decisions",
+    name: "UOHS Enforcement Decisions",
+    authority: "Úřad pro ochranu hospodářské soutěže (UOHS)",
+    url: "https://www.uohs.cz/cs/hospodarska-soutez/spravni-rozhodnuti.html",
+    scope: "Abuse of dominance, cartel, public procurement, and sector inquiry decisions under ZOHS",
+    license: "Public domain (official government publication)",
+    update_frequency: "Periodic ingestion from UOHS website",
+  },
+  {
+    id: "uohs-mergers",
+    name: "UOHS Merger Control Decisions",
+    authority: "Úřad pro ochranu hospodářské soutěže (UOHS)",
+    url: "https://www.uohs.cz/cs/hospodarska-soutez/spojovani-soutezitelu.html",
+    scope: "Merger control decisions under ZOHS §12-19",
+    license: "Public domain (official government publication)",
+    update_frequency: "Periodic ingestion from UOHS website",
+  },
+];
 
 // --- MCP server factory ------------------------------------------------------
 
@@ -173,6 +209,11 @@ function createMcpServer(): Server {
 
     function textContent(data: unknown) {
       return {
+        _meta: {
+          server: SERVER_NAME,
+          version: pkgVersion,
+          generated_at: new Date().toISOString(),
+        },
         content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
       };
     }
@@ -237,10 +278,24 @@ function createMcpServer(): Server {
             name: SERVER_NAME,
             version: pkgVersion,
             description:
-              "Bundeskartellamt (German Federal Cartel Office) MCP server. Provides access to German competition law enforcement decisions, merger control cases, and sector enforcement data under the UOHS (Gesetz gegen Wettbewerbsbeschränkungen).",
-            data_source: "Bundeskartellamt (https://www.bundeskartellamt.de/)",
+              "UOHS (Úřad pro ochranu hospodářské soutěže — Czech Office for the Protection of Competition) MCP server. Provides access to competition enforcement decisions, merger control cases, public procurement oversight, and sector inquiries under Czech competition law (ZOHS).",
+            data_source: "UOHS (https://www.uohs.cz/)",
+            coverage: {
+              decisions: "UOHS abuse of dominance, cartel, public procurement, and sector inquiry decisions",
+              mergers: "UOHS merger control decisions (Fusionskontrolle) under ZOHS",
+              sectors: "Sectors with UOHS enforcement activity",
+            },
             tools: TOOLS.map((t) => ({ name: t.name, description: t.description })),
           });
+        }
+
+        case "cz_comp_list_sources": {
+          return textContent({ sources: SOURCES, count: SOURCES.length });
+        }
+
+        case "cz_comp_check_data_freshness": {
+          const freshness = getDataFreshness();
+          return textContent(freshness);
         }
 
         default:
