@@ -9,7 +9,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # --- Stage 1: Build TypeScript ---
-FROM node:20-slim AS builder
+FROM node:25-slim AS builder
 
 WORKDIR /app
 COPY package.json package-lock.json* ./
@@ -19,7 +19,7 @@ COPY src/ src/
 RUN npm run build
 
 # --- Stage 2: Production ---
-FROM node:20-slim AS production
+FROM node:25-slim AS production
 
 WORKDIR /app
 ENV NODE_ENV=production
